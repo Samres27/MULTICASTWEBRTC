@@ -1,0 +1,87 @@
+/*
+This example shows how to automate Janus based scenarios in testRTC
+
+SCENARIO
+ * Browser goes to Service URL
+ * Browser starts the demo and enters his name
+ * Browser runs for 2 minutes
+
+SCALING
+To scale the test, change the number of concurrent users and/or the
+number of users in the session (look at #session:2 in Run Options).
+
+THINGS TO PLAY WITH
+ * Probe configurations (look after the script):
+- Location of probes
+- Media files to use
+- Network configuration and quality
+- Browser version
+ * Number of concurrent users (in a paid account. Evals limited to 2 max)
+ * Join with your own browser to the Service URL
+ * Replace the Service URL with your own Janus installation
+ */
+
+// Variables that we will use in this example
+var roomUrl = process.env.RTC_SERVICE_URL;
+var agentName = process.env.RTC_AGENT_NAME;
+var agentType = Number(process.env.RTC_IN_SESSION_ID);
+var sec = 1000;
+var drop = 20000;
+
+// We set a few expectations. If these don't happen, the test will fail
+// In Janus case, we want to make sure we have:
+// 1. Media being sent and received
+// 2. Low incoming packet loss (less than 2%)
+client.resizeWindow(1280, 720)
+    .rtcSetTestExpectation("audio.in.bitrate > 0")
+    .rtcSetTestExpectation("audio.out.bitrate > 0")
+    .rtcSetTestExpectation("video.in.bitrate > 0")
+    .rtcSetTestExpectation("video.out.bitrate > 0");
+
+// Join the room
+client
+    .pause(agentType * sec) // Small pause so we don't "hurt" the server
+    .rtcProgress('Joining ' + roomUrl)
+    .url(roomUrl)
+    .waitForElementVisible('body', 30 * sec)
+    .waitForElementVisible('#start', 30 * sec)
+    .pause(500)
+    .click('#start')
+    .waitForElementVisible('#username', 30 * sec)
+    .pause(500)
+
+    // Set the user name based on the probe's designated name
+    .setValue('#username', agentName.replace(/-/g, ''))
+    .pause(500)
+    .rtcScreenshot('joining')
+    .click('#register')
+    //.waitForElementVisible('#myvideo', 30 * sec);
+
+// Now that the browser is connected and in the room, we wait
+
+client.rtcProgress("in session")
+    .pause(60 * sec)
+    .rtcScreenshot("in session");
+
+if (agentType === 1) {
+    client
+        .rtcEvent('call drop', 'global')
+        .rtcInfo('Call Drop')
+        .rtcSetNetworkProfile('Call Drop')
+        .pause(drop)
+        .rtcScreenshot('Call Drop')
+        .rtcInfo('Call Drop End')
+        .rtcEvent('call drop end', 'global')
+
+        /*.rtcSetNetworkProfile('Poor 3G')
+        .pause(interval)
+        .rtcScreenshot('Poor 3G')
+        .rtcSetNetworkProfile('Wifi')*/
+        .rtcSetNetworkProfile('');
+} else {
+    client.pause(drop)
+        .rtcScreenshot('Call Drop');
+}
+
+client.pause(120 * sec)
+    .rtcProgress("Bye");

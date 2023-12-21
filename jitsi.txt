@@ -1,0 +1,116 @@
+/*
+    This example shows how to automate Jitsi based scenarios in testRTC
+    
+    SCENARIO
+    * Browser joins room URL
+    * Browser 1 runs for 1 minute
+    * Browser 1 shares his screen
+    * Browser 1 runs for 1 minute
+    * All other browsers run for 2 minutes
+    
+    SCALING
+    To scale the test, change the number of concurrent users and/or the
+    number of users in the session (look at #session:2 in Run Options).
+
+    THINGS TO PLAY WITH
+    * Probe configurations (look after the script):
+      - Location of probes
+      - Media files to use
+      - Network configuration and quality
+      - Browser version
+    * Number of concurrent users (in a paid account. Evals limited to 2 max)
+    * Session size (Run Options; #session:2 value)
+    * Join with your own browser to the URL of the test
+      (try opening mentioned roomUrl when the test is running)
+*/
+
+// Variables that we will use in this example
+var roomUrl = process.env.RTC_SERVICE_URL;
+var agentType = Number(process.env.RTC_IN_SESSION_ID);
+var agentSession = Number(process.env.RTC_SESSION_IDX);
+var sessionJoinRate = 500;
+var sec = 1000;
+var timeOut = 30 * sec;
+
+// We're going to screen share New Doctor Strange Movie's official trailer :-)
+var videoURL = "https://youtu.be/aWzlQ2N6qqg";
+
+// We set a few expectations. If these don't happen, the test will fail
+// In appear.in case, we want to make sure we have:
+// 1. At least 1 incoming A/V channels
+// 2. Media being sent and received
+client
+    .resizeWindow(1280, 720)
+    .rtcSetTestExpectation("audio.in >= 1")
+    .rtcSetTestExpectation("audio.out >= 1")
+    .rtcSetTestExpectation("video.in >= 1")
+    .rtcSetTestExpectation("video.out >= 1")
+    .rtcSetTestExpectation("audio.in.bitrate > 0")
+    .rtcSetTestExpectation("audio.out.bitrate > 0")
+    .rtcSetTestExpectation("video.in.bitrate > 0")
+    .rtcSetTestExpectation("video.out.bitrate > 0");
+
+// Join the Jitsi room
+client
+    .rtcInfo(roomUrl)
+    .rtcProgress('open ' + roomUrl)
+    .pause((sessionJoinRate * agentType) + 10)
+    .url(roomUrl)
+    .useCss()
+    //.waitForElementVisible('.prejoin-input-area', timeOut)
+    .pause(200) //wait for page render 
+    .useXpath()
+    .waitForElementVisible("//input[@placeholder='Enter your name']", 60 * sec)
+    .pause(300) //wait for page render 
+    .setValue("//input[@placeholder='Enter your name']", agentSession + "testRTC" + agentType)
+    .pause(300)
+    .click('//div[@aria-label="Join meeting"]')
+    .useCss()
+    //.waitForElementVisible('#largeVideo', timeOut)
+    .pause(60 * sec)
+
+if (agentType == 1) {
+    client
+        // Moving the mouse to get the action buttons to appear
+        .useXpath()
+        .moveTo(null, 1, 100)
+        .pause(200)
+        .moveTo(null, 110, 200)
+        .pause(200)
+        .moveTo(null, 1, 1)
+        .pause(50)
+        .useCss()
+        .waitForElementVisible('div[aria-label="Start sharing your screen"]', timeOut)
+        .pause(100)
+        // Click the screen share button
+        .click('div[aria-label="Start sharing your screen"]')
+        .pause(300)
+        .rtcEvent('Screen Share ' + agentSession, 'global')
+        .rtcScreenshot('screen share')
+
+        // Open a new tab with a YouTube video and switch to that tab
+        .execute("window.open('" + videoURL + "', '_blank')")
+        .pause(2 * sec)
+        .windowHandles(function(result) {
+            var newWindow;
+            newWindow = result.value[1 + Number(process.env.RTC_EXTRA_TABS)];
+            this.switchWindow(newWindow);
+        })
+        .pause(60 * sec)
+        .rtcScreenshot('watching')
+        .pause(30 * sec)
+        
+} else {
+    
+    // All other browsers' actions take place here
+    client
+        // Run for two minute
+        .pause(45 * sec)
+        .rtcScreenshot('watching 1')
+        .pause(25 * sec)
+        .rtcScreenshot('watching 2')
+        .pause(20 * sec)
+        
+}
+
+client.rtcProgress("Bye")
